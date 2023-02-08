@@ -1,12 +1,12 @@
 import time
 from typing import Tuple
 
-import example_robot_data
+from example_robot_data.robots_loader import load
 import numpy as np
 import numpy.typing as npt
 import pinocchio as pin
-from agent.double.simulator import RobotSimulator
-from agent.double.wrapper import RobotWrapper
+from agent.double.robot_simulator import RobotSimulator
+from agent.double.robot_wrapper import RobotWrapper
 from agent.pendulum import PendulumAgent
 from agent.utils import NumpyUtils
 
@@ -24,8 +24,8 @@ class UnderactDoublePendulumAgent(PendulumAgent):
         )
 
         # Load robot agent and wrap it
-        robot_data = example_robot_data.load("double_pendulum")
-        self._robot = RobotWrapper(robot_data.model, robot_data.collision_model, robot_data.visual_model)
+        r = load("double_pendulum")
+        self._robot = RobotWrapper(r.model, r.collision_model, r.visual_model)
 
         # Simulation wrapper on the robot
         self._simu = RobotSimulator(sim_time_step, self._robot)
@@ -55,22 +55,32 @@ class UnderactDoublePendulumAgent(PendulumAgent):
             state: npt.NDArray,
             control: npt.NDArray
     ) -> Tuple[npt.NDArray, float]:
-        dx = np.zeros(2 * self.joint_velocities_size)
+        nq = self._robot.nq
+        nv = self._robot.nv
 
-        q = NumpyUtils.modulo_pi(np.copy(state[:self.joint_angles_size]))
-        v = np.copy(state[self.joint_angles_size:])
-        u = np.clip(np.reshape(np.copy(control), self.control_size), -self._max_torque, self._max_torque)
+        q = NumpyUtils.modulo_pi(np.copy(state[:nq]))
+        v = np.copy(state[nq:])
+        u = np.clip(np.reshape(np.copy(control), nq), -self._max_torque, self._max_torque)
 
-        ddq = pin.aba(self._robot.model, self._robot.data, q, v, u)
-        dx[self.joint_velocities_size:] = ddq
+        self._robot.computeAllTerms(q, v)
+
+        model = self._robot.model
+        data = self._robot.data
+
+        dx = np.zeros(nq+nv)
+
+        ddq = pin.aba(model, data, q, v, u)
+
+        dx[nv:] = ddq
         v_mean = v + 0.5 * self.sim_time_step * ddq
-        dx[:self.joint_velocities_size] = v_mean
+        dx[:nv] = v_mean
 
         new_state = np.copy(state) + self.sim_time_step * dx
 
-        new_state[:self.joint_angles_size] = NumpyUtils.modulo_pi((new_state[:self.joint_angles_size]))
-        new_state[self.joint_angles_size:] = np.clip(new_state[self.joint_angles_size:], -self._max_vel, self._max_vel)
+        new_state[:nq] = NumpyUtils.modulo_pi((new_state[:nq]))
+        new_state[nq:] = np.clip(new_state[nq:], -self._max_vel, self._max_vel)
 
         cost = self.cost_function(new_state, u)
 
         return new_state, cost
+
