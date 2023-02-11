@@ -46,7 +46,7 @@ To start training a model with default parameters, for the single or double pend
 ```
 python3 train.py [single|double] name_of_experiment
 ```
-Optionally, you can specify the following parameters:
+where _name_of_experiment_ is a name you choose to identify your training experiment. Optionally, you can specify the following parameters:
 
 
 | Name and value                | Description                                                 | Default  |
@@ -73,7 +73,7 @@ The results of training are stored in `models/name_of_experiment`, together with
 ### Evaluation
 To evaluate a trained model, run:
 ```
-python3 eval.py name_of_the_experiment
+python3 eval.py name_of_experiment
 ```
 where `name_of_the_experiment` is the name you have chosen for training. Since the evaluation automatically loads the right environment and model architecture for either the single or double pendulum, you need to have this folder structure:
 ```
